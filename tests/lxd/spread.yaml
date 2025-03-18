@@ -9,7 +9,7 @@ backends:
                 plan: c1-m1
             - ubuntu-24.04-vm:
                 image: ubuntu-24.04
-                plan: c1-m1
+                vm: true
 
 path: /home/test
 

@@ -12,5 +12,10 @@ execute: |
     grep 'lxd:ubuntu-22.04:checks/main' task.out
     grep '^WORKS$' task.out
 
+    for system in ubuntu-24.04-with-plan; do
+        grep "lxd-c:${system}:checks/main" task.out
+        grep "^WORKS NPROC=1 VM=0 ${system}\$" task.out
+    done
+
 debug: |
     cat task.out || true

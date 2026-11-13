@@ -761,6 +761,11 @@ expressions that act on the full relative name of each entry, and also
 on the target of symbolic links. To avoid touching the target of symbolic
 links append the `S` modifier as a suffix of the expression.
 
+It is possible to include files from parent directories. When the project is
+packed, a leading `..` or `/` in an included path is removed, so the file is
+placed at the root of the project tree. For example, when including
+`../utils/script.sh`, the file will be packed as `utils/script.sh`.
+
 Note that Spread will still expect tasks to live in the same directories as
 they do locally, so these directories cannot be moved.
 

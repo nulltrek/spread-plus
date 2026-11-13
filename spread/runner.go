@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -451,7 +452,8 @@ func (r *Runner) prepareContent() (err error) {
 		}()
 
 		err = cmd.Wait()
-		err = outputErr(stderr.Bytes(), err)
+		output := filterTarOutput(stderr.Bytes())
+		err = outputErr(output, err)
 		if err != nil {
 			return fmt.Errorf("cannot pack project tree: %v", err)
 		}
@@ -497,7 +499,8 @@ func (r *Runner) prepareContent() (err error) {
 		wg.Add(1)
 		go func() {
 			err := cmd.Wait()
-			errch <- outputErr(stderr.Bytes(), err)
+			output := filterTarOutput(stderr.Bytes())
+			errch <- outputErr(output, err)
 
 			// Unblock script.
 			tarw.Close()
@@ -552,6 +555,19 @@ func (r *Runner) prepareContent() (err error) {
 	r.contentSize = st.Size()
 	r.contentFile = file
 	return nil
+}
+
+func filterTarOutput(output []byte) []byte {
+	var filtered []byte
+	warning := []byte("Removing leading")
+
+	for _, line := range bytes.SplitAfter(output, []byte{'\n'}) {
+		if bytes.Contains(line, warning) {
+			continue
+		}
+		filtered = append(filtered, line...)
+	}
+	return filtered
 }
 
 func (r *Runner) waitContent() (io.Reader, error) {
@@ -1423,6 +1439,11 @@ func logNames(f func(format string, args ...interface{}), prefix string, jobs []
 	f("%s: %d%s%s", prefix, len(names), dash, strings.Join(names, dash))
 }
 
+var defaultIgnoredFiles = []string{
+	".git",
+	".spread-reuse.",
+}
+
 func filterDir(path string) (names []string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -1435,7 +1456,11 @@ func filterDir(path string) (names []string, err error) {
 	}
 	var filtered []string
 	for _, name := range names {
-		if !strings.HasPrefix(name, ".spread-reuse.") {
+		found := slices.ContainsFunc(defaultIgnoredFiles, func(ignored string) bool {
+			return strings.HasPrefix(name, ignored)
+		})
+
+		if !found {
 			filtered = append(filtered, name)
 		}
 	}

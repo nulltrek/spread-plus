@@ -8,3 +8,4 @@ stage
 .vscode/
 vendor/*/
 vendor/modules.txt
+spread-plus

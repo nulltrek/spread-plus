@@ -100,7 +100,6 @@ type Backend struct {
 
 	Priority OptionalInt
 	Manual   bool
-	Vm       bool
 }
 
 func (b *Backend) String() string { return fmt.Sprintf("backend %q", b.Name) }
@@ -180,6 +179,7 @@ type System struct {
 	// Only for Google
 	AttachServiceAccount bool `yaml:"attach-service-account"`
 
+	// Only for LXD
 	Vm bool
 }
 

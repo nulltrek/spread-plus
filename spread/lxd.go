@@ -120,8 +120,7 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 	if instanceType != "" {
 		args = append(args, "-t", instanceType)
 	}
-	vmRequested := p.backend.Vm || system.Vm
-	if vmRequested {
+	if system.Vm {
 		args = append(args, "--vm")
 	}
 	if system.Storage != Size(0) {
@@ -146,7 +145,7 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 
 	printf("Waiting for lxd container %s to have an address...", name)
 	maxTimeout := 30 * time.Second
-	if vmRequested {
+	if system.Vm {
 		// VM may take considerably longer to start
 		// TODO: should this be configurable?
 		maxTimeout = 180 * time.Second

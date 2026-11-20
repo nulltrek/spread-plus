@@ -20,6 +20,7 @@ execute: |
     for system in ubuntu-24.04-vm; do
         grep "lxd-d:${system}:checks/main" task.out
         grep "^WORKS NPROC=2 VM=1 ${system}\$" task.out
+        grep "^MOUNT WORKS mount-fixture ${system}\$" task.out
     done
 
 debug: |

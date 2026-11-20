@@ -93,6 +93,66 @@ suites:
 	c.Check(backend.Systems["system-3"].Plan, Equals, "global-plan")
 }
 
+func (s *projectSuite) TestLoadWithMount(c *C) {
+	spreadYaml := []byte(`project: mock-prj
+path: /some/path
+backends:
+ lxd:
+  systems:
+   - system-1:
+      mount:
+       source: ./testdata
+       path: /workspace/testdata
+   - system-2:
+      mount:
+       source: ./testdata
+       path: /workspace/testdata
+       rw: true
+suites:
+ tests/:
+  summary: mock tests
+`)
+	tmpdir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(tmpdir, "spread.yaml"), spreadYaml, 0644)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(tmpdir, "tests", "testdata"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(tmpdir, "testdata"), 0755)
+	c.Assert(err, IsNil)
+
+	prj, err := spread.Load(tmpdir)
+	c.Assert(err, IsNil)
+	backend := prj.Backends["lxd"]
+	m1 := backend.Systems["system-1"].Mount
+	c.Check(m1, NotNil)
+	c.Check(m1.Source, Equals, "./testdata")
+	c.Check(m1.Path, Equals, "/workspace/testdata")
+	c.Check(m1.ReadWrite, Equals, false)
+	m2 := backend.Systems["system-2"].Mount
+	c.Check(m2.ReadWrite, Equals, true)
+
+	// A mount pointing at a nonexistent host directory must fail plan load.
+	spreadYaml = []byte(`project: mock-prj
+path: /some/path
+backends:
+ lxd:
+  systems:
+   - system-1:
+      mount:
+       source: ./missing
+       path: /workspace/resources
+suites:
+ tests/:
+  summary: mock tests
+`)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "spread.yaml"), spreadYaml, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = spread.Load(tmpdir)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Matches, ".*has system \"system-1\" with mount source \"./missing\" not found on host.*")
+}
+
 func (s *projectSuite) TestOptionalInt(c *C) {
 	optInts := struct {
 		Priority spread.OptionalInt `yaml:"priority"`

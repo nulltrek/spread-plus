@@ -211,6 +211,14 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 		return nil, err
 	}
 
+	if system.Mount != nil {
+		err = p.mountHostDir(name, system)
+		if err != nil {
+			s.Discard(ctx)
+			return nil, err
+		}
+	}
+
 	err = p.tuneSSH(name)
 	if err != nil {
 		s.Discard(ctx)
@@ -641,6 +649,32 @@ func (p *lxdProvider) waitExecReady(name string, maxTimeout time.Duration) error
 				name, outputErr(output, err))
 		}
 	}
+}
+
+// mountHostDir adds a disk device for a host directory requested by the mount
+// system property. In a VM, it must run after the instance agent is up.
+func (p *lxdProvider) mountHostDir(name string, system *System) error {
+	source := system.Mount.Source
+	if !filepath.IsAbs(source) {
+		source = filepath.Join(p.project.Path, source)
+	} else {
+		source = filepath.Clean(source)
+	}
+	if _, err := os.Stat(source); err != nil {
+		return &FatalError{fmt.Errorf("cannot mount %q into %s: %v", system.Mount.Source, system, err)}
+	}
+	readonly := "true"
+	if system.Mount.ReadWrite {
+		readonly = "false"
+	}
+	args := []string{"config", "device", "add", name, "spread-mount",
+		"disk", "source=" + source, "path=" + system.Mount.Path,
+		"readonly=" + readonly}
+	output, err := exec.Command("lxc", args...).CombinedOutput()
+	if err != nil {
+		return &FatalError{fmt.Errorf("cannot add mount device to %s: %v", system, outputErr(output, err))}
+	}
+	return nil
 }
 
 func (p *lxdProvider) tuneSSH(name string) error {

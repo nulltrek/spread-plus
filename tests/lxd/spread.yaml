@@ -12,6 +12,9 @@ backends:
                 vm: true
                 cpus: 2
                 memory: 2G
+                mount:
+                    source: ./testdata
+                    path: /workspace/testdata
 
 path: /home/test
 

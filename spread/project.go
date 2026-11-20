@@ -181,9 +181,16 @@ type System struct {
 
 	// Only for LXD
 	Vm     bool
-	CPUs   int  `yaml:"cpus"`
-	Memory Size `yaml:"memory"`
+	CPUs   int          `yaml:"cpus"`
+	Memory Size         `yaml:"memory"`
+	Mount  *SystemMount `yaml:"mount"`
+}
 
+// SystemMount describes a host directory mounted into an provider instance.
+type SystemMount struct {
+	Source    string // Host path. Either absolute or resolved against the project root
+	Path      string // Mount point inside the instance
+	ReadWrite bool   `yaml:"rw"`
 }
 
 func (system *System) String() string { return system.Backend + ":" + system.Name }
@@ -637,6 +644,12 @@ func Load(path string) (*Project, error) {
 			if len(system.Groups) == 0 {
 				system.Groups = backend.Groups
 			}
+			if system.Mount != nil {
+				err := checkMounts(project, backend, sysname, system.Mount)
+				if err != nil {
+					return nil, err
+				}
+			}
 			if err := checkEnv(system, &system.Environment); err != nil {
 				return nil, err
 			}
@@ -831,6 +844,23 @@ func checkSystems(context fmt.Stringer, systems []string) error {
 		if !validSystem.MatchString(system) {
 			return fmt.Errorf("%s refers to invalid system name: %q", context, system)
 		}
+	}
+	return nil
+}
+
+func checkMounts(project *Project, backend *Backend, sysname string, mount *SystemMount) error {
+	if backend.Type != "lxd" {
+		return fmt.Errorf("%s has system %q with mount, which is only supported by the lxd backend", backend, sysname)
+	}
+	if mount.Source == "" || mount.Path == "" {
+		return fmt.Errorf("%s has system %q with incomplete mount, both source and path are required", backend, sysname)
+	}
+	source := mount.Source
+	if !filepath.IsAbs(source) {
+		source = filepath.Join(project.Path, source)
+	}
+	if _, err := os.Stat(source); err != nil {
+		return fmt.Errorf("%s has system %q with mount source %q not found on host: %v", backend, sysname, mount.Source, err)
 	}
 	return nil
 }

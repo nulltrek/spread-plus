@@ -178,14 +178,14 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 	for {
 		err := p.cloudInitDone(name, 10)
 		if err != nil {
-			_, is_timeout := err.(*lxdCloudInitTimeoutError)
-			_, is_not_present := err.(*lxdCloudInitNotPresentError)
-			_, is_lxd_agent_not_ready := err.(*lxdAgentNotAvailableError)
-			if is_not_present {
+			_, isTimeout := err.(*lxdCloudInitTimeoutError)
+			_, isNotPresent := err.(*lxdCloudInitNotPresentError)
+			_, isLxdAgentNotReady := err.(*lxdAgentNotAvailableError)
+			if isNotPresent {
 				printf(err.Error())
 				break
 			}
-			if !is_timeout && !is_lxd_agent_not_ready {
+			if !isTimeout && !isLxdAgentNotReady {
 				s.Discard(ctx)
 				return nil, err
 			}

@@ -200,6 +200,11 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 		}
 	}
 
+	if err := p.waitExecReady(name, maxTimeout); err != nil {
+		s.Discard(ctx)
+		return nil, err
+	}
+
 	err = p.tuneSSH(name)
 	if err != nil {
 		s.Discard(ctx)
@@ -608,6 +613,28 @@ func (p *lxdProvider) cloudInitDone(name string, timeout int) error {
 	}
 	logf("cloud-init done: %q: %q", name, output)
 	return nil
+}
+
+// waitExecReady polls until the lxc instance accepts commands. In case of a VM,
+// the lxc-agent may accept individual requests while it is not yet fully
+// available during boot, so failures are retried until the timeout.
+func (p *lxdProvider) waitExecReady(name string, maxTimeout time.Duration) error {
+	timeout := time.After(maxTimeout)
+	retry := time.NewTicker(1 * time.Second)
+	defer retry.Stop()
+	printf("Waiting for lxd agent in %s to become available...", name)
+	for {
+		output, err := exec.Command("lxc", "exec", name, "--", "true").CombinedOutput()
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-retry.C:
+		case <-timeout:
+			return fmt.Errorf("cannot prepare instance %q for use: lxd agent not available: %v",
+				name, outputErr(output, err))
+		}
+	}
 }
 
 func (p *lxdProvider) tuneSSH(name string) error {

@@ -180,7 +180,10 @@ type System struct {
 	AttachServiceAccount bool `yaml:"attach-service-account"`
 
 	// Only for LXD
-	Vm bool
+	Vm     bool
+	CPUs   int  `yaml:"cpus"`
+	Memory Size `yaml:"memory"`
+
 }
 
 func (system *System) String() string { return system.Backend + ":" + system.Name }

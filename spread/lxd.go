@@ -126,6 +126,12 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 	if system.Storage != Size(0) {
 		args = append(args, "-d", fmt.Sprintf("root,size=%d", system.Storage))
 	}
+	if system.CPUs > 0 {
+		args = append(args, "-c", fmt.Sprintf("limits.cpu=%d", system.CPUs))
+	}
+	if system.Memory > 0 {
+		args = append(args, "-c", fmt.Sprintf("limits.memory=%dB", int64(system.Memory)))
+	}
 	output, err := exec.Command("lxc", args...).CombinedOutput()
 	if err != nil {
 		err = outputErr(output, err)

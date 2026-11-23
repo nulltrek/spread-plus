@@ -149,7 +149,11 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 		system: system,
 	}
 
-	printf("Waiting for lxd container %s to have an address...", name)
+	instanceKindName := "container"
+	if system.Vm {
+		instanceKindName = "virtual machine"
+	}
+	printf("Waiting for lxd %s %s to have an address...", instanceKindName, name)
 	maxTimeout := 30 * time.Second
 	if system.Vm {
 		// VM may take considerably longer to start

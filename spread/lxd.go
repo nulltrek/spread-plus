@@ -223,6 +223,14 @@ func (p *lxdProvider) Allocate(ctx context.Context, system *System) (Server, err
 		}
 	}
 
+	if len(system.CharDevices) > 0 {
+		err = p.mountCharDevices(name, system)
+		if err != nil {
+			s.Discard(ctx)
+			return nil, err
+		}
+	}
+
 	err = p.tuneSSH(name)
 	if err != nil {
 		s.Discard(ctx)
@@ -677,6 +685,24 @@ func (p *lxdProvider) mountHostDir(name string, system *System) error {
 	output, err := exec.Command("lxc", args...).CombinedOutput()
 	if err != nil {
 		return &FatalError{fmt.Errorf("cannot add mount device to %s: %v", system, outputErr(output, err))}
+	}
+	return nil
+}
+
+// mountCharDevices adds char devices present on the host to a container.
+func (p *lxdProvider) mountCharDevices(name string, system *System) error {
+	if system.Vm {
+		return &FatalError{fmt.Errorf("char devices cannot be mounted on VMs")}
+	}
+
+	for i, device := range system.CharDevices {
+		devName := fmt.Sprintf("lxd-char-dev-%d", i)
+		args := []string{"config", "device", "add", name, devName,
+			"unix-char", "path=" + device}
+		output, err := exec.Command("lxc", args...).CombinedOutput()
+		if err != nil {
+			return &FatalError{fmt.Errorf("cannot add device to %s: %v", system, outputErr(output, err))}
+		}
 	}
 	return nil
 }

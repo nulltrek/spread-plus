@@ -180,10 +180,11 @@ type System struct {
 	AttachServiceAccount bool `yaml:"attach-service-account"`
 
 	// Only for LXD
-	Vm     bool
-	CPUs   int          `yaml:"cpus"`
-	Memory Size         `yaml:"memory"`
-	Mount  *SystemMount `yaml:"mount"`
+	Vm          bool
+	CPUs        int          `yaml:"cpus"`
+	Memory      Size         `yaml:"memory"`
+	Mount       *SystemMount `yaml:"mount"`
+	CharDevices []string     `yaml:"char-devices"`
 }
 
 // SystemMount describes a host directory mounted into an provider instance.

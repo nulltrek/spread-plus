@@ -35,6 +35,7 @@ var (
 	abend          = flag.Bool("abend", false, "Stop without restoring on first error")
 	restore        = flag.Bool("restore", false, "Run only the restore scripts")
 	discard        = flag.Bool("discard", false, "Discard reused servers without running")
+	dir            = flag.String("dir", ".", "Where to start searching for a spread.yaml file")
 	artifacts      = flag.String("artifacts", "", "Where to store task artifacts")
 	logs           = flag.String("logs", "", "Where to store generated logs")
 	json           = flag.String("json", "", "Where to store json results output")
@@ -141,7 +142,7 @@ func run() error {
 		Order:          *order,
 	}
 
-	project, err := spread.Load(".")
+	project, err := spread.Load(*dir)
 	if err != nil {
 		return err
 	}

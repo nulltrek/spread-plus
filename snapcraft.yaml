@@ -1,29 +1,26 @@
-name: spread-plus
+name: spreadpp
+title: Spread++
 version: 2026.09.22
 summary: Convenient full-system test (task) distribution
 description: |
-    Spread Plus is a fork of Spread created to serve as a development and experimentation
-    ground for new ideas, features, and improvements that may later be proposed for inclusion
-    in the upstream Spread project.
+    Spread++ is based on Spread Plus. It provides a place to develop and test changes
+    for possible inclusion in the upstream Spread project.
 
-    While remaining fully compatible with existing Spread configurations, Spread Plus aims to
-    enhance the developer experience in several key areas:
-      . Improved debugging capabilities, offering more detailed logs, better traceability, and
-        clearer failure reporting to simplify test analysis and issue resolution.
-      . Enhanced CI integration, making it easier to connect Spread with modern continuous
-        integration systems and automate complex testing pipelines.
-      . Expanded backend availability, enabling tests to be executed on a wider range of
-        environments and targets, from virtualized systems to containerized and remote backends.
+    New features include:
+      * Featureful LXD backend, adding VM support, device mounts, resource configuration.
+      * Quality of life improvements for the CLI.
+      * Better support for single repo / multiple projects.
 
-    The primary goal of Spread Plus is to make the testing and validation workflow more transparent, reliable, and adaptable — without compromising compatibility with the original Spread framework. In practice, it acts as an innovation branch where new functionality is explored, validated, and refined before being proposed upstream.
+      Spread++ aims to make tests easier to understand, run, and check while keeping
+      compatibility with Spread. New changes can be tested here before they are proposed upstream.
 
 confinement: strict
 grade: stable
 base: core24
 
 apps:
-    spread:
-        command: bin/spread
+    spreadpp:
+        command: bin/spreadpp
         plugs: [home, network, network-bind]
 
 slots:
@@ -34,14 +31,15 @@ slots:
           - $SNAP/bin
 
 parts:
-    spread-plus:
+    spreadpp:
         plugin: go
         source: .
         override-build: |
           craftctl default
           go build -ldflags "-X main.version=${CRAFT_PROJECT_VERSION}" -o "$CRAFT_PART_INSTALL/bin/spread" ./cmd/spread
+        organize:
+          bin/spread: bin/spreadpp
         build-snaps:
           - go/1.24/stable
         stage-packages:
           - openssl
-

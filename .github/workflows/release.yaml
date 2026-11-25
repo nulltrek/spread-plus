@@ -1,4 +1,4 @@
-name: Release spread-plus
+name: Release Spread++
 
 on:
   release:
@@ -30,7 +30,7 @@ jobs:
         run: |
           sudo snap install go --classic
 
-      - name: Build spread-plus
+      - name: Build Spread++
         env:
           GOARCH: ${{ matrix.goarch }}
           GOOS: linux
@@ -39,18 +39,18 @@ jobs:
 
           go build \
             -ldflags "-X main.version=${VERSION}" \
-            -o spread-plus \
+            -o bin/spreadpp \
             ./cmd/spread
 
       - name: Package
         run: |
-          tar -czf "spread-plus-${{ matrix.arch }}.tar.gz" spread-plus
+          tar -C bin -czf "spreadpp-${{ matrix.arch }}.tar.gz" spreadpp
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: spread-plus-${{ matrix.arch }}
-          path: spread-plus-${{ matrix.arch }}.tar.gz
+          name: spreadpp-${{ matrix.arch }}
+          path: spreadpp-${{ matrix.arch }}.tar.gz
 
   build-snap:
     name: Build snap ${{ matrix.arch }}
@@ -77,13 +77,13 @@ jobs:
       - name: Rename snap
         env:
           BUILT_SNAP: ${{ steps.snapcraft.outputs.snap }}
-        run: mv "${BUILT_SNAP}" "spread-plus-${{ matrix.arch }}.snap"
+        run: mv "${BUILT_SNAP}" "spreadpp-${{ matrix.arch }}.snap"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: spread-plus-snap-${{ matrix.arch }}
-          path: spread-plus-${{ matrix.arch }}.snap
+          name: spreadpp-snap-${{ matrix.arch }}
+          path: spreadpp-${{ matrix.arch }}.snap
 
   release:
     name: Publish release assets
@@ -101,18 +101,18 @@ jobs:
         working-directory: dist
         run: |
           sha256sum \
-            spread-plus-amd64.tar.gz \
-            spread-plus-arm64.tar.gz \
-            spread-plus-amd64.snap \
-            spread-plus-arm64.snap \
+            spreadpp-amd64.tar.gz \
+            spreadpp-arm64.tar.gz \
+            spreadpp-amd64.snap \
+            spreadpp-arm64.snap \
             > SHA256SUMS
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/spread-plus-amd64.tar.gz
-            dist/spread-plus-arm64.tar.gz
-            dist/spread-plus-amd64.snap
-            dist/spread-plus-arm64.snap
+            dist/spreadpp-amd64.tar.gz
+            dist/spreadpp-arm64.tar.gz
+            dist/spreadpp-amd64.snap
+            dist/spreadpp-arm64.snap
             dist/SHA256SUMS

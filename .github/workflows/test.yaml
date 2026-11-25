@@ -1,16 +1,18 @@
-name: Test spread-plus
+name: Test Spread++
 
 on:
   push:
     branches:
     - main
+    - devel
   pull_request:
     branches:
     - main
+    - devel
 
 jobs:
   build:
-    name: Build Spread
+    name: Build Spread++
     runs-on: ubuntu-latest
 
     strategy:
@@ -27,16 +29,16 @@ jobs:
       run: |
           sudo snap install go --classic --channel "$GOCHANNEL"
 
-    - name: Build spread
+    - name: Build Spread++
       run: |
           SPREAD_VERSION="$(date -u +%Y.%m.%d)-dev.${GITHUB_SHA::7}"
-          GOARCH="${{ matrix.arch }}" go build -ldflags "-X main.version=${SPREAD_VERSION}" -o spread-plus cmd/spread/main.go
+          GOARCH="${{ matrix.arch }}" go build -ldflags "-X main.version=${SPREAD_VERSION}" -o bin/spreadpp cmd/spread/main.go
 
-    - name: Upload spread binary to cache
+    - name: Upload spreadpp binary to cache
       uses: actions/upload-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-${{ matrix.arch }}"
-        path: "spread-plus"
+        name: "spreadpp-${{ github.run_id }}-${{ matrix.arch }}"
+        path: "bin/spreadpp"
 
   unit-tests:
     name: Unit Tests
@@ -72,10 +74,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download spread-plus
+    - name: Download spreadpp
       uses: actions/download-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-amd64"
+        name: "spreadpp-${{ github.run_id }}-amd64"
         path: "${{ github.workspace }}/bin"
 
     - name: Integration tests
@@ -90,11 +92,11 @@ jobs:
           OS_USER_DOMAIN_NAME: ${{ vars.OS_USER_DOMAIN_NAME }}
           OS_USERNAME: ${{ secrets.OS_USERNAME }}
       run: |      
-          chmod +x "${{ github.workspace }}"/bin/spread-plus
+          chmod +x "${{ github.workspace }}"/bin/spreadpp
           # "pipefail" ensures that a non-zero status from the spread is propagated
           (
             set -o pipefail
-            "${{ github.workspace }}/bin/spread-plus" openstack:tests/ | tee spread.log
+            "${{ github.workspace }}/bin/spreadpp" openstack:tests/ | tee spread.log
           )
 
     - name: Discard spread workers
@@ -102,7 +104,7 @@ jobs:
       run: |
           shopt -s nullglob;
           for r in .spread-reuse.*.yaml; do
-            spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
           done
 
   smoke-tests-openstack-amd64:
@@ -120,10 +122,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download spread-plus
+    - name: Download spreadpp
       uses: actions/download-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-amd64"
+        name: "spreadpp-${{ github.run_id }}-amd64"
         path: "${{ github.workspace }}/bin"
 
     - name: Smoke tests with openstack backend
@@ -144,14 +146,14 @@ jobs:
               exit
           fi
           cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spread-plus
+          chmod +x "${{ github.workspace }}"/bin/spreadpp
           # Run only the reboot smoke test before the separate attach smoke test.
           (
             set -o pipefail
-            "${{ github.workspace }}/bin/spread-plus" openstack:ubuntu-22.04-64:tests/reboot | tee spread-reboot.log
+            "${{ github.workspace }}/bin/spreadpp" openstack:ubuntu-22.04-64:tests/reboot | tee spread-reboot.log
           )
           ./lib/run-smoke.sh \
-            "${{ github.workspace }}/bin/spread-plus" \
+            "${{ github.workspace }}/bin/spreadpp" \
             openstack:ubuntu-22.04-64:tests/attach
 
     - name: Discard spread workers
@@ -159,7 +161,7 @@ jobs:
       run: |
           shopt -s nullglob;
           for r in .spread-reuse.*.yaml; do
-            spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
           done
 
   smoke-tests-openstack-arm64:
@@ -177,10 +179,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download spread-plus
+    - name: Download spreadpp
       uses: actions/download-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-amd64"
+        name: "spreadpp-${{ github.run_id }}-amd64"
         path: "${{ github.workspace }}/bin"
 
     - name: Smoke tests with openstack backend
@@ -201,11 +203,11 @@ jobs:
               exit
           fi
           cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spread-plus
+          chmod +x "${{ github.workspace }}"/bin/spreadpp
           # "pipefail" ensures that a non-zero status from the spread is propagated
           (
             set -o pipefail    
-            "${{ github.workspace }}/bin/spread-plus" openstack-arm:tests/ | tee spread.log
+            "${{ github.workspace }}/bin/spreadpp" openstack-arm:tests/ | tee spread.log
           )
 
     - name: Discard spread workers
@@ -213,7 +215,7 @@ jobs:
       run: |
           shopt -s nullglob;
           for r in .spread-reuse.*.yaml; do
-            spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
           done
 
   smoke-tests-testflinger:
@@ -231,10 +233,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download spread-plus
+    - name: Download spreadpp
       uses: actions/download-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-amd64"
+        name: "spreadpp-${{ github.run_id }}-amd64"
         path: "${{ github.workspace }}/bin"
 
     - name: Smoke tests with testflinger backend
@@ -243,11 +245,11 @@ jobs:
           TESTFLINGER_SECRET_KEY: ${{ secrets.TESTFLINGER_SECRET_KEY }}
       run: |
           cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spread-plus
+          chmod +x "${{ github.workspace }}"/bin/spreadpp
           # "pipefail" ensures that a non-zero status from the spread is propagated
           (
             set -o pipefail    
-            "${{ github.workspace }}/bin/spread-plus" testflinger:tests/ | tee spread.log
+            "${{ github.workspace }}/bin/spreadpp" testflinger:tests/ | tee spread.log
           )
   
     - name: Discard spread workers
@@ -255,7 +257,7 @@ jobs:
       run: |
           shopt -s nullglob;
           for r in .spread-reuse.*.yaml; do
-            spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
           done
 
   upload:
@@ -267,16 +269,17 @@ jobs:
         arch: [amd64, arm64]
 
     steps:
-    - name: Download spread-plus
+    - name: Download spreadpp
       uses: actions/download-artifact@v4
       with:
-        name: "spread-plus-${{ github.run_id }}-${{ matrix.arch }}"
+        name: "spreadpp-${{ github.run_id }}-${{ matrix.arch }}"
         path: "${{ github.workspace }}/bin"
 
     - name: Upload to google bucket
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       env:
           GCLOUD_SA_KEY: ${{ secrets.GCLOUD_SA_KEY }}
+          # Keep the existing archive name and spread executable for external users.
           SPREAD_FILE: spread-plus-${{ matrix.arch }}
       run: |
           sudo snap install google-cloud-cli --classic
@@ -284,7 +287,7 @@ jobs:
           gcloud auth activate-service-account --key-file=sa.json
           rm -f sa.json
 
-          mv "${{ github.workspace }}"/bin/spread-plus spread
+          mv "${{ github.workspace }}"/bin/spreadpp spread
           chmod +x spread
           tar -czf "$SPREAD_FILE".tar.gz spread
 

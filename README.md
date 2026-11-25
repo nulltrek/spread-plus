@@ -1,19 +1,16 @@
-Spread Plus
-===========
+Spread++
+========
 
 ##  Introduction
 
-Spread Plus is a fork of Spread created to serve as a development and experimentation ground for new ideas, features, and improvements that may later be proposed for inclusion in the upstream Spread project.
+Spread++ is a fork of [Spread Plus](https://github.com/canonical/spread-plus). It provides a place to develop and test changes for possible inclusion in the upstream Spread project.
 
-While remaining fully compatible with existing Spread configurations, Spread Plus aims to enhance the developer experience in several key areas:
+Spread++ supports existing Spread configurations. New features include:
+ * Featureful LXD backend, adding VM support, device mounts, resource configuration.
+ * Quality of life improvements for the CLI.
+ * Better support for single repo / multiple projects.
 
- * Improved debugging capabilities, offering more detailed logs, better traceability, and clearer failure reporting to simplify test analysis and issue resolution.
-
- * Enhanced CI integration, making it easier to connect Spread with modern continuous integration systems and automate complex testing pipelines.
-
- * Expanded backend availability, enabling tests to be executed on a wider range of environments and targets, from virtualized systems to containerized and remote backends.
-
-The primary goal of Spread Plus is to make the testing and validation workflow more transparent, reliable, and adaptable — without compromising compatibility with the original Spread framework. In practice, it acts as an innovation branch where new functionality is explored, validated, and refined before being proposed upstream.
+Spread++ aims to make tests easier to understand, run, and check while keeping compatibility with Spread. New changes can be tested here before they are proposed upstream.
 
 ## Convenient full-system test (task) distribution 
 
@@ -115,23 +112,28 @@ backend:system:suite/task:variant
 
 ## Install
 
-Please install `spread` using Go install method:
+The snap package and command are both named `spreadpp`. After the package is
+published to the Snap Store, install it with:
 
 ```shell
-go install github.com/canonical/spread-plus/cmd/spread@latest
+sudo snap install spreadpp
+spreadpp --version
 ```
+
+To build Spread++ from source, set the version string:
+
+```shell
+go build -ldflags "-X main.version=$(git describe --tags --always --dirty)" -o bin/spreadpp ./cmd/spread
+./bin/spreadpp --version
+```
+
+The examples below use `spread`. To use these examples with the snap, replace
+`spread` with `spreadpp`.
 
 Check the installed binary version with:
 
 ```shell
-spread --version
-```
-
-When building from source, set the version string explicitly:
-
-```shell
-go build -ldflags "-X main.version=$(git describe --tags --always --dirty)" -o spread-plus ./cmd/spread
-./spread-plus --version
+spreadpp --version
 ```
 
 <a name="hello-world"/>

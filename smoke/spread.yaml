@@ -5,7 +5,7 @@
 # Keep in mind that the logic in task.yaml is supposed to test the *built*
 # spread, not the one running the task.yaml logic.
 
-project: spread-plus
+project: spreadpp
 
 backends:
     google:

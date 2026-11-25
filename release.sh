@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-readonly repo="canonical/spread-plus"
+readonly repo="nulltrek/spread-plus"
 readonly remote="origin"
+readonly release_branch="devel"
 readonly default_version="$(date -u +%Y.%m.%d)"
 
 usage() {
@@ -15,6 +16,7 @@ Commands:
   publish  Publish the GitHub Release after the release PR has been merged
   verify   Download and verify the release assets and local binary
 
+Releases use ${release_branch}. Release pull requests target ${release_branch}.
 VERSION defaults to the current UTC date: ${default_version}
 Use YYYY.MM.DD.N for additional releases on the same day, starting with .1.
 EOF
@@ -74,9 +76,9 @@ prepare() {
 	gh auth status >/dev/null
 	require_unreleased "${version}"
 
-	# Prepare the release from the latest main branch.
-	git switch main
-	git pull --ff-only "${remote}" main
+	# Prepare the release from the updated release source branch.
+	git switch "${release_branch}"
+	git pull --ff-only "${remote}" "${release_branch}"
 	git show-ref --verify --quiet "refs/heads/${branch}" &&
 		die "local branch already exists: ${branch}"
 	git switch -c "${branch}"
@@ -86,7 +88,7 @@ prepare() {
 
 	# Validate the source and embedded version before publishing the branch.
 	go test ./...
-	binary=$(mktemp "${TMPDIR:-/tmp}/spread-plus.XXXXXX")
+	binary=$(mktemp "${TMPDIR:-/tmp}/spreadpp.XXXXXX")
 	trap 'rm -f "${binary}"' RETURN
 	go build -ldflags "-X main.version=${version}" -o "${binary}" ./cmd/spread
 	[[ "$("${binary}" --version)" == "${version}" ]] || die "built binary reported the wrong version"
@@ -97,18 +99,18 @@ prepare() {
 	git add snapcraft.yaml
 	git commit -m "Prepare ${version} release"
 	git push -u "${remote}" "${branch}"
-	gh pr create --repo "${repo}" --fill
+	gh pr create --repo "${repo}" --base "${release_branch}" --fill
 }
 
 publish() {
 	local version="$1"
 
-	# Publish only a clean, merged release version from the latest main branch.
+	# Publish a clean, merged release version from the updated release source branch.
 	require_command gh
 	require_clean_tree
 	gh auth status >/dev/null
-	git switch main
-	git pull --ff-only "${remote}" main
+	git switch "${release_branch}"
+	git pull --ff-only "${remote}" "${release_branch}"
 	require_clean_tree
 	[[ "$(snapcraft_version)" == "${version}" ]] ||
 		die "snapcraft.yaml version is $(snapcraft_version), expected ${version}"
@@ -117,15 +119,15 @@ publish() {
 	# Publishing the release triggers the workflow that builds all release assets.
 	gh release create "${version}" \
 		--repo "${repo}" \
-		--target main \
-		--title "Spread Plus ${version}" \
+		--target "${release_branch}" \
+		--title "Spread++ ${version}" \
 		--generate-notes
 }
 
 verify() {
 	local version="$1"
 	local architecture
-	local output_dir="spread-plus-${version}"
+	local output_dir="spreadpp-${version}"
 	local assets
 
 	# Refuse to overwrite an earlier verification download.
@@ -138,10 +140,10 @@ verify() {
 	# Check the complete asset set before downloading anything.
 	assets=$(gh release view "${version}" --repo "${repo}" --json assets --jq '.assets[].name')
 	for asset in \
-		spread-plus-amd64.tar.gz \
-		spread-plus-arm64.tar.gz \
-		spread-plus-amd64.snap \
-		spread-plus-arm64.snap \
+		spreadpp-amd64.tar.gz \
+		spreadpp-arm64.tar.gz \
+		spreadpp-amd64.snap \
+		spreadpp-arm64.snap \
 		SHA256SUMS; do
 		grep -Fxq "${asset}" <<<"${assets}" || die "release asset is missing: ${asset}"
 	done
@@ -160,8 +162,8 @@ verify() {
 		esac
 
 		# Confirm the native release binary reports the exact release tag.
-		tar -xzf "spread-plus-${architecture}.tar.gz"
-		[[ "$(./spread-plus --version)" == "${version}" ]] ||
+		tar -xzf "spreadpp-${architecture}.tar.gz"
+		[[ "$(./spreadpp --version)" == "${version}" ]] ||
 			die "released binary reported the wrong version"
 	)
 

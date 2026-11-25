@@ -8,4 +8,4 @@ stage
 .vscode/
 vendor/*/
 vendor/modules.txt
-spread-plus
+/bin/spreadpp

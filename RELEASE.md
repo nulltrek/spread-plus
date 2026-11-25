@@ -1,18 +1,24 @@
-# Releasing Spread Plus
+# Releasing Spread++
 
-Spread Plus releases use a date-based version in `YYYY.MM.DD` format. Additional
+Spread++ releases use a date-based version in `YYYY.MM.DD` format. Additional
 releases on the same UTC day append a positive sequence number, producing
 `YYYY.MM.DD.1`, `YYYY.MM.DD.2`, and so on. Publishing a GitHub Release triggers
 `.github/workflows/release.yaml`, which builds Linux archives and snaps for amd64
 and arm64 and attaches them to the release with checksums.
 
+Releases use the `devel` branch. Release branches start from `devel`, release
+pull requests target `devel`, and release tags are created from `devel`.
+The repository default branch can remain `main`.
+
 Development binaries built by `.github/workflows/test.yaml` use
-`YYYY.MM.DD-dev.SHORT_SHA`. This keeps builds from `main` distinct from published
-releases and identifies the source commit.
+`YYYY.MM.DD-dev.SHORT_SHA`. This keeps builds from `main` and `devel` distinct
+from published releases and identifies the source commit. CI runs on pushes
+and pull requests to both branches. Google Cloud uploads remain restricted to
+pushes to `main`.
 
 ## Prerequisites
 
-- Write access to the `canonical/spread-plus` repository.
+- Write access to the `nulltrek/spread-plus` repository.
 - Permission to publish GitHub Releases and run GitHub Actions.
 
 ### Automated release prerequisites
@@ -32,14 +38,14 @@ Authenticate the GitHub CLI and verify that it can access the repository:
 ```shell
 gh auth login
 gh auth status
-gh repo view canonical/spread-plus
+gh repo view nulltrek/spread-plus
 ```
 
-Clone the canonical repository, or confirm that an existing checkout uses it as
+Clone the release repository, or confirm that an existing checkout uses it as
 the `origin` remote:
 
 ```shell
-git clone git@github.com:canonical/spread-plus.git
+git clone git@github.com:nulltrek/spread-plus.git
 cd spread-plus
 git remote get-url origin
 ```
@@ -57,7 +63,7 @@ git status --short
 ```
 
 `go version` must report Go 1.24 or newer, `origin` must point to
-`canonical/spread-plus`, and `git status --short` must produce no output. Ensure
+`nulltrek/spread-plus`, and `git status --short` must produce no output. Ensure
 the script is executable if the checkout did not preserve its mode:
 
 ```shell
@@ -85,19 +91,19 @@ For example:
 
    This checks the working tree and release tag, updates `snapcraft.yaml`, runs
    the tests and versioned build, commits the change, pushes the release branch,
-   and opens a pull request.
+   and opens a pull request against `devel`.
 
 2. Wait for the required checks, review the pull request, and merge it. This is
    intentionally not automated.
 
-3. Publish the release from the updated `main` branch:
+3. Publish the release from the updated `devel` branch:
 
    ```shell
    ./release.sh publish [VERSION]
    ```
 
    This confirms the merged version and creates the GitHub Release. The release
-   triggers the `Release spread-plus` workflow that builds and uploads assets.
+   triggers the `Release Spread++` workflow that builds and uploads assets.
 
 4. After the release workflow succeeds, verify its assets:
 
@@ -106,7 +112,7 @@ For example:
    ```
 
    This checks that all expected assets exist, downloads them into
-   `spread-plus-VERSION`, verifies their checksums, and checks the version of the
+   `spreadpp-VERSION`, verifies their checksums, and checks the version of the
    binary for the local architecture.
 
 The commands are separate because a pull request must be reviewed and merged
@@ -132,11 +138,11 @@ The following steps document the equivalent manual process.
    VERSION="$(date -u +%Y.%m.%d).1"
    ```
 
-2. Create a branch from the latest `main`:
+2. Create a branch from the latest `devel`:
 
    ```shell
-   git switch main
-   git pull --ff-only origin main
+   git switch devel
+   git pull --ff-only origin devel
    git switch -c "release-${VERSION}"
    ```
 
@@ -146,9 +152,9 @@ The following steps document the equivalent manual process.
 
    ```shell
    go test ./...
-   go build -ldflags "-X main.version=${VERSION}" -o spread-plus ./cmd/spread
-   ./spread-plus --version
-   rm spread-plus
+   go build -ldflags "-X main.version=${VERSION}" -o bin/spreadpp ./cmd/spread
+   ./bin/spreadpp --version
+   rm bin/spreadpp
    ```
 
    The version command must print `${VERSION}`.
@@ -159,7 +165,7 @@ The following steps document the equivalent manual process.
    git add snapcraft.yaml
    git commit -m "Prepare ${VERSION} release"
    git push -u origin "release-${VERSION}"
-   gh pr create --fill
+   gh pr create --repo nulltrek/spread-plus --base devel --fill
    ```
 
 6. Wait for all required GitHub Actions checks to pass, review the generated
@@ -167,12 +173,12 @@ The following steps document the equivalent manual process.
 
 ### Publish the release
 
-1. Update the local `main` branch and confirm that the release commit is
+1. Update the local `devel` branch and confirm that the release commit is
    present:
 
    ```shell
-   git switch main
-   git pull --ff-only origin main
+   git switch devel
+   git pull --ff-only origin devel
    git status --short
    ```
 
@@ -190,12 +196,13 @@ The following steps document the equivalent manual process.
 
    ```shell
    gh release create "${VERSION}" \
-       --target main \
-       --title "Spread Plus ${VERSION}" \
+       --repo nulltrek/spread-plus \
+       --target devel \
+       --title "Spread++ ${VERSION}" \
        --generate-notes
    ```
 
-   Publishing the release creates the tag and starts the `Release spread-plus`
+   Publishing the release creates the tag and starts the `Release Spread++`
    workflow. Do not create or upload the binary archives manually.
 
 ### Verify the release
@@ -204,26 +211,26 @@ The following steps document the equivalent manual process.
 
 2. Confirm that the release contains all five generated assets:
 
-   - `spread-plus-amd64.tar.gz`
-   - `spread-plus-arm64.tar.gz`
-   - `spread-plus-amd64.snap`
-   - `spread-plus-arm64.snap`
+   - `spreadpp-amd64.tar.gz`
+   - `spreadpp-arm64.tar.gz`
+   - `spreadpp-amd64.snap`
+   - `spreadpp-arm64.snap`
    - `SHA256SUMS`
 
 3. Download and verify the assets:
 
    ```shell
-   mkdir "spread-plus-${VERSION}"
-   cd "spread-plus-${VERSION}"
-   gh release download "${VERSION}" --repo canonical/spread-plus
+   mkdir "spreadpp-${VERSION}"
+   cd "spreadpp-${VERSION}"
+   gh release download "${VERSION}" --repo nulltrek/spread-plus
    sha256sum --check SHA256SUMS
    ```
 
 4. Extract the archive for the local architecture and check its version:
 
    ```shell
-   tar -xzf "spread-plus-$(dpkg --print-architecture).tar.gz"
-   ./spread-plus --version
+   tar -xzf "spreadpp-$(dpkg --print-architecture).tar.gz"
+   ./spreadpp --version
    ```
 
    The command must print the release tag exactly.

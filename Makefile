@@ -1,3 +1,3 @@
 .PHONY: build
 build:
-	go build -o spread-plus cmd/spread/main.go
+	go build -o bin/spreadpp cmd/spread/main.go

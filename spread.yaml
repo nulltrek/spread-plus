@@ -5,7 +5,7 @@
 # Keep in mind that the logic in task.yaml is supposed to test the *built*
 # spread, not the one running the task.yaml logic.
 
-project: spread-plus
+project: spreadpp
 
 environment:
     GOCHANNEL: 1.24/stable
@@ -102,15 +102,14 @@ prepare: |
 
     # Either use pregenerated spread if exists or build it
     mkdir -p "$GOHOME/bin"
-    if [ -x ./bin/spread ]; then
-        mv -f ./bin/spread "$GOHOME/bin/spread"
+    if [ -x ./bin/spreadpp ]; then
+        mv -f ./bin/spreadpp "$GOHOME/bin/spread"
     else
         # Cache Go deb with: cd tests/cache && godeb download $GOVERSION
         if ! snap list go; then
             snap install go --classic --channel "$GOCHANNEL"
         fi
-        /snap/bin/go build -o spread-plus cmd/spread/main.go
-        mv -f ./spread-plus "$GOHOME/bin/spread"
+        /snap/bin/go build -o "$GOHOME/bin/spread" cmd/spread/main.go
     fi
 
 # vim:ts=4:sw=4:et

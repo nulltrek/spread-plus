@@ -4,7 +4,9 @@ Spread++ releases use a date-based version in `YYYY.MM.DD` format. Additional
 releases on the same UTC day append a positive sequence number, producing
 `YYYY.MM.DD.1`, `YYYY.MM.DD.2`, and so on. Publishing a GitHub Release triggers
 `.github/workflows/release.yaml`, which builds Linux archives and snaps for amd64
-and arm64 and attaches them to the release with checksums.
+and arm64 and attaches them to the release with checksums. After uploading the
+GitHub assets, it publishes both snaps to the Snap Store's `latest/edge` channel.
+The snap version must match the release tag.
 
 Releases use the `devel` branch. Release branches start from `devel`, release
 pull requests target `devel`, and release tags are created from `devel`.
@@ -13,13 +15,41 @@ The repository default branch can remain `main`.
 Development binaries built by `.github/workflows/test.yaml` use
 `YYYY.MM.DD-dev.SHORT_SHA`. This keeps builds from `main` and `devel` distinct
 from published releases and identifies the source commit. CI runs on pushes
-and pull requests to both branches. Google Cloud uploads remain restricted to
-pushes to `main`.
+and pull requests to both branches. It builds both architectures, runs unit
+tests, and runs the main suite on a local LXD VM with the current build.
+OpenStack, Testflinger, and Google Cloud jobs are not used.
 
 ## Prerequisites
 
 - Write access to the `nulltrek/spread-plus` repository.
 - Permission to publish GitHub Releases and run GitHub Actions.
+- A Snap Store publisher account with the `spreadpp` name registered.
+- The `SNAPCRAFT_STORE_CREDENTIALS` repository secret for Store uploads.
+
+### Snap Store setup
+
+On a machine with Snapcraft, register the name if it is not already registered:
+
+```shell
+sudo snap install snapcraft --classic
+snapcraft login
+snapcraft register spreadpp
+```
+
+Export credentials limited to this snap and the `edge` channel:
+
+```shell
+snapcraft export-login \
+    --snaps=spreadpp \
+    --channels=edge \
+    --acls=package_access,package_push,package_update,package_release \
+    /tmp/spreadpp-store-login
+```
+
+In the GitHub repo, open Settings, Secrets and variables, Actions.
+Create a repository secret named `SNAPCRAFT_STORE_CREDENTIALS` with the contents
+of that file. Keep the credentials outside the repository and delete the local
+file after adding the secret.
 
 ### Automated release prerequisites
 
@@ -103,7 +133,8 @@ For example:
    ```
 
    This confirms the merged version and creates the GitHub Release. The release
-   triggers the `Release Spread++` workflow that builds and uploads assets.
+   triggers the `Release Spread++` workflow that builds and uploads assets,
+   then publishes the snaps to `edge`.
 
 4. After the release workflow succeeds, verify its assets:
 
@@ -114,6 +145,17 @@ For example:
    This checks that all expected assets exist, downloads them into
    `spreadpp-VERSION`, verifies their checksums, and checks the version of the
    binary for the local architecture.
+
+5. Check the Store installation on each supported architecture:
+
+   ```shell
+   sudo snap install spreadpp --edge
+   spreadpp --version
+   ```
+
+   If it is already installed, use `sudo snap refresh spreadpp --edge`.
+   The version must match the release tag. The script's `verify` command checks
+   GitHub assets; it does not check the Store installation or confined backends.
 
 The commands are separate because a pull request must be reviewed and merged
 between preparation and publication, and the release workflow must finish
@@ -242,5 +284,7 @@ jobs in GitHub Actions. If the source itself is faulty, fix it through another
 pull request and publish a new version. Do not move or reuse a published release
 tag.
 
-The GitHub workflow builds and attaches snap files to the GitHub Release. It does
-not publish them to the Snap Store; Store publishing remains a separate process.
+If a Store upload fails, the GitHub assets may already be available. Rerun the
+failed job after correcting the error. A repeated upload can create another
+Store revision of the same version. Each architecture is published separately;
+check both Store revisions after a partial failure.

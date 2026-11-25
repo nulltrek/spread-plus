@@ -136,6 +136,44 @@ Check the installed binary version with:
 spreadpp --version
 ```
 
+## Run this project's tests locally
+
+Use an Ubuntu amd64 host with Go 1.24 or newer, LXD, and nested KVM support.
+The main suite runs in an LXD VM. Its tests start more containers and a VM
+inside that worker. Allow at least 8 GiB of memory and 30 GiB of worker storage,
+plus resources for the host.
+
+Install LXD and initialize it if it is not already configured:
+
+```shell
+sudo snap install lxd --channel=5.21/stable
+sudo lxd init
+sudo modprobe kvm_intel || sudo modprobe kvm_amd
+```
+
+From the repository root, rebuild the current source and run the local suite:
+
+```shell
+make test-lxd
+```
+
+To list the jobs or run one task first:
+
+```shell
+make build
+./bin/spreadpp --version
+./bin/spreadpp -list lxd:tests/
+./bin/spreadpp -vv lxd:tests/match
+```
+
+The worker receives this build as `spread`, which is the command used by the
+inner tests. A Store installation is not needed. The local backend is selected
+only when requested. The separate QEMU task remains manual.
+
+GitHub Actions runs the same suite on `ubuntu-24.04` with the binary built by
+that workflow. The job checks for KVM and fails if VM support is unavailable.
+It saves the output as an `lxd-test-logs` artifact. Cloud test jobs are not used.
+
 <a name="hello-world"/>
 
 ## Hello world

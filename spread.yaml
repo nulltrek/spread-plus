@@ -15,6 +15,16 @@ environment:
     CACHE_DISABLED: $(HOST:[ "$SEND_CACHE" = 1 ] && echo false || echo tests/cache)
 
 backends:
+    lxd:
+        manual: true
+        systems:
+            - ubuntu-26.04-64:
+                image: ubuntu:26.04
+                vm: true
+                cpus: 4
+                memory: 8G
+                storage: 30G
+                workers: 1
     google:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: snapd-spread/us-east1-b
@@ -59,6 +69,8 @@ backends:
 exclude:
     - .spread-reuse.yaml
     - tests/.spread-reuse.yaml
+    - spread.log
+    - spread-logs
     - $CACHE_DISABLED
 
 path: /home/test/src/github.com/canonical/spread-plus
@@ -71,7 +83,15 @@ suites:
         summary: Integration tests
 
 prepare: |
-    DEBS="jq git qemu-kvm tree"
+    if [ "$SPREAD_BACKEND" = lxd ]; then
+        modprobe kvm_intel || modprobe kvm_amd || true
+        if [ ! -c /dev/kvm ]; then
+            echo "The LXD test worker must support nested KVM." >&2
+            exit 1
+        fi
+    fi
+
+    DEBS="jq git qemu-system-x86 tree python3-yaml"
     if ! dpkg -l $DEBS; then
         apt update
         apt install -y $DEBS

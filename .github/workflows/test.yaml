@@ -2,19 +2,18 @@ name: Test Spread++
 
 on:
   push:
-    branches:
-    - main
-    - devel
+    branches: [main, devel]
   pull_request:
-    branches:
-    - main
-    - devel
+    branches: [main, devel]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     name: Build Spread++
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [amd64, arm64]
@@ -23,281 +22,91 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install dependencies
-      env:
-          GOCHANNEL: 1.24/stable
-      run: |
-          sudo snap install go --classic --channel "$GOCHANNEL"
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
 
     - name: Build Spread++
+      env:
+        CGO_ENABLED: '0'
+        GOARCH: ${{ matrix.arch }}
       run: |
-          SPREAD_VERSION="$(date -u +%Y.%m.%d)-dev.${GITHUB_SHA::7}"
-          GOARCH="${{ matrix.arch }}" go build -ldflags "-X main.version=${SPREAD_VERSION}" -o bin/spreadpp cmd/spread/main.go
+        SPREAD_VERSION="$(date -u +%Y.%m.%d)-dev.${GITHUB_SHA::7}"
+        go build -ldflags "-X main.version=${SPREAD_VERSION}" -o bin/spreadpp ./cmd/spread
+        if [ "$GOARCH" = amd64 ]; then
+          test "$(./bin/spreadpp --version)" = "$SPREAD_VERSION"
+        fi
 
-    - name: Upload spreadpp binary to cache
+    - name: Upload binary
       uses: actions/upload-artifact@v4
       with:
-        name: "spreadpp-${{ github.run_id }}-${{ matrix.arch }}"
-        path: "bin/spreadpp"
+        name: spreadpp-${{ github.run_id }}-${{ matrix.arch }}
+        path: bin/spreadpp
 
   unit-tests:
     name: Unit Tests
-    needs: [build]
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install dependencies
-      env:
-          GOCHANNEL: 1.24/stable
-      run: |
-          sudo snap install go --classic --channel "$GOCHANNEL"
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
 
     - name: Run unit tests
-      run: |
-          go test ./...
+      run: go test ./...
 
   integration-tests:
-    name: Integration Tests
+    name: LXD Integration Tests
     needs: [build]
-    runs-on: [self-hosted, spread-enabled]
-    environment: OS_AMD64_PS7
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     steps:
-    - name: Ensure the workspace is clean
-      run: |
-          rm -rf "${{ github.workspace }}"
-          mkdir "${{ github.workspace }}"
-
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download spreadpp
+    - name: Download current binary
       uses: actions/download-artifact@v4
       with:
-        name: "spreadpp-${{ github.run_id }}-amd64"
-        path: "${{ github.workspace }}/bin"
+        name: spreadpp-${{ github.run_id }}-amd64
+        path: bin
 
-    - name: Integration tests
-      env:
-          OS_AUTH_URL: ${{ secrets.OS_AUTH_URL }}
-          OS_IDENTITY_API_VERSION: ${{ vars.OS_IDENTITY_API_VERSION }}
-          OS_INTERFACE: ${{ vars.OS_INTERFACE }}
-          OS_PASSWORD: ${{ secrets.OS_PASSWORD }}
-          OS_PROJECT_DOMAIN_NAME: ${{ vars.OS_PROJECT_DOMAIN_NAME }}
-          OS_PROJECT_NAME: ${{ secrets.OS_PROJECT_NAME }}
-          OS_REGION_NAME: ${{ secrets.OS_REGION_NAME }}
-          OS_USER_DOMAIN_NAME: ${{ vars.OS_USER_DOMAIN_NAME }}
-          OS_USERNAME: ${{ secrets.OS_USERNAME }}
-      run: |      
-          chmod +x "${{ github.workspace }}"/bin/spreadpp
-          # "pipefail" ensures that a non-zero status from the spread is propagated
-          (
-            set -o pipefail
-            "${{ github.workspace }}/bin/spreadpp" openstack:tests/ | tee spread.log
-          )
+    - name: Set up LXD
+      run: |
+        sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
+        if [ ! -c /dev/kvm ]; then
+          echo "LXD VM tests require /dev/kvm on this runner." >&2
+          exit 1
+        fi
+        sudo snap install lxd --channel=5.21/stable
+        sudo lxd waitready
+        sudo lxd init --auto --storage-backend=dir
+        sudo setfacl -m "u:$USER:rw" /var/snap/lxd/common/lxd/unix.socket
+        chmod +x bin/spreadpp
 
-    - name: Discard spread workers
+    - name: Run integration tests
+      run: |
+        set -o pipefail
+        ./bin/spreadpp -vv -logs=spread-logs lxd:tests/ 2>&1 | tee spread.log
+
+    - name: Discard remaining workers
       if: always()
       run: |
-          shopt -s nullglob;
-          for r in .spread-reuse.*.yaml; do
-            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-          done
+        shopt -s nullglob
+        for reuse in .spread-reuse.[0-9]*.yaml; do
+          pid="${reuse#.spread-reuse.}"
+          pid="${pid%.yaml}"
+          ./bin/spreadpp -discard -reuse-pid="$pid" lxd:tests/
+        done
 
-  smoke-tests-openstack-amd64:
-    name: Smoke Tests in Openstack PS7 (amd64)
-    needs: [build]
-    runs-on: [self-hosted, spread-enabled]
-    environment: OS_AMD64_PS7
-
-    steps:
-    - name: Ensure the workspace is clean
-      run: |
-          rm -rf "${{ github.workspace }}"
-          mkdir "${{ github.workspace }}"
-
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download spreadpp
-      uses: actions/download-artifact@v4
-      with:
-        name: "spreadpp-${{ github.run_id }}-amd64"
-        path: "${{ github.workspace }}/bin"
-
-    - name: Smoke tests with openstack backend
-      env:
-          OS_AUTH_URL: ${{ secrets.OS_AUTH_URL }}
-          OS_IDENTITY_API_VERSION: ${{ vars.OS_IDENTITY_API_VERSION }}
-          OS_INTERFACE: ${{ vars.OS_INTERFACE }}
-          OS_PASSWORD: ${{ secrets.OS_PASSWORD }}
-          OS_PROJECT_DOMAIN_NAME: ${{ vars.OS_PROJECT_DOMAIN_NAME }}
-          OS_PROJECT_NAME: ${{ secrets.OS_PROJECT_NAME }}
-          OS_REGION_NAME: ${{ secrets.OS_REGION_NAME }}
-          OS_USER_DOMAIN_NAME: ${{ vars.OS_USER_DOMAIN_NAME }}
-          OS_USERNAME: ${{ secrets.OS_USERNAME }}
-          OS_SKIP: ${{ vars.SKIP_OPENSTACK_AMD64_PS7 }}
-      run: |
-          if [ "$OS_SKIP" == true ]; then
-              echo "Skipping openstack smoke tests..."
-              exit
-          fi
-          cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spreadpp
-          # Run only the reboot smoke test before the separate attach smoke test.
-          (
-            set -o pipefail
-            "${{ github.workspace }}/bin/spreadpp" openstack:ubuntu-22.04-64:tests/reboot | tee spread-reboot.log
-          )
-          ./lib/run-smoke.sh \
-            "${{ github.workspace }}/bin/spreadpp" \
-            openstack:ubuntu-22.04-64:tests/attach
-
-    - name: Discard spread workers
+    - name: Upload test logs
       if: always()
-      run: |
-          shopt -s nullglob;
-          for r in .spread-reuse.*.yaml; do
-            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-          done
-
-  smoke-tests-openstack-arm64:
-    name: Smoke Tests in Openstack PS7 (arm64)
-    needs: [build]
-    runs-on: [self-hosted, spread-enabled]
-    environment: OS_ARM64_PS7
-
-    steps:
-    - name: Ensure the workspace is clean
-      run: |
-          rm -rf "${{ github.workspace }}"
-          mkdir "${{ github.workspace }}"
-
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download spreadpp
-      uses: actions/download-artifact@v4
+      uses: actions/upload-artifact@v4
       with:
-        name: "spreadpp-${{ github.run_id }}-amd64"
-        path: "${{ github.workspace }}/bin"
-
-    - name: Smoke tests with openstack backend
-      env:
-          OS_AUTH_URL: ${{ secrets.OS_AUTH_URL }}
-          OS_IDENTITY_API_VERSION: ${{ vars.OS_IDENTITY_API_VERSION }}
-          OS_INTERFACE: ${{ vars.OS_INTERFACE }}
-          OS_PASSWORD: ${{ secrets.OS_PASSWORD }}
-          OS_PROJECT_DOMAIN_NAME: ${{ vars.OS_PROJECT_DOMAIN_NAME }}
-          OS_PROJECT_NAME: ${{ secrets.OS_PROJECT_NAME }}
-          OS_REGION_NAME: ${{ secrets.OS_REGION_NAME }}
-          OS_USER_DOMAIN_NAME: ${{ vars.OS_USER_DOMAIN_NAME }}
-          OS_USERNAME: ${{ secrets.OS_USERNAME }}
-          OS_SKIP: ${{ vars.SKIP_OPENSTACK_ARM64_PS7 }}
-      run: |
-          if [ "$OS_SKIP" == true ]; then
-              echo "Skipping openstack smoke tests..."
-              exit
-          fi
-          cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spreadpp
-          # "pipefail" ensures that a non-zero status from the spread is propagated
-          (
-            set -o pipefail    
-            "${{ github.workspace }}/bin/spreadpp" openstack-arm:tests/ | tee spread.log
-          )
-
-    - name: Discard spread workers
-      if: always()
-      run: |
-          shopt -s nullglob;
-          for r in .spread-reuse.*.yaml; do
-            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-          done
-
-  smoke-tests-testflinger:
-    name: Smoke Tests in Testflinger
-    needs: [build]
-    runs-on: [self-hosted, spread-enabled]
-    if: ${{ vars.SKIP_TESTFLINGER == 'false' }}
-
-    steps:
-    - name: Ensure the workspace is clean
-      run: |
-          rm -rf "${{ github.workspace }}"
-          mkdir "${{ github.workspace }}"
-
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download spreadpp
-      uses: actions/download-artifact@v4
-      with:
-        name: "spreadpp-${{ github.run_id }}-amd64"
-        path: "${{ github.workspace }}/bin"
-
-    - name: Smoke tests with testflinger backend
-      env: 
-          TESTFLINGER_CLIENT_ID: ${{ secrets.TESTFLINGER_CLIENT_ID }}
-          TESTFLINGER_SECRET_KEY: ${{ secrets.TESTFLINGER_SECRET_KEY }}
-      run: |
-          cd "${{ github.workspace }}"/smoke
-          chmod +x "${{ github.workspace }}"/bin/spreadpp
-          # "pipefail" ensures that a non-zero status from the spread is propagated
-          (
-            set -o pipefail    
-            "${{ github.workspace }}/bin/spreadpp" testflinger:tests/ | tee spread.log
-          )
-  
-    - name: Discard spread workers
-      if: always()
-      run: |
-          shopt -s nullglob;
-          for r in .spread-reuse.*.yaml; do
-            "${{ github.workspace }}/bin/spreadpp" -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
-          done
-
-  upload:
-    name: Upload binary to GCE
-    runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, smoke-tests-openstack-amd64, smoke-tests-openstack-arm64]
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-
-    steps:
-    - name: Download spreadpp
-      uses: actions/download-artifact@v4
-      with:
-        name: "spreadpp-${{ github.run_id }}-${{ matrix.arch }}"
-        path: "${{ github.workspace }}/bin"
-
-    - name: Upload to google bucket
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      env:
-          GCLOUD_SA_KEY: ${{ secrets.GCLOUD_SA_KEY }}
-          # Keep the existing archive name and spread executable for external users.
-          SPREAD_FILE: spread-plus-${{ matrix.arch }}
-      run: |
-          sudo snap install google-cloud-cli --classic
-          echo "$GCLOUD_SA_KEY" > sa.json
-          gcloud auth activate-service-account --key-file=sa.json
-          rm -f sa.json
-
-          mv "${{ github.workspace }}"/bin/spreadpp spread
-          chmod +x spread
-          tar -czf "$SPREAD_FILE".tar.gz spread
-
-          # Back up previous spread if it is published
-          if gsutil ls gs://snapd-spread-tests/spread/"$SPREAD_FILE".tar.gz; then
-              gsutil cp gs://snapd-spread-tests/spread/"$SPREAD_FILE".tar.gz gs://snapd-spread-tests/spread/"$SPREAD_FILE"-old.tar.gz
-          fi
-          gsutil cp "$SPREAD_FILE".tar.gz gs://snapd-spread-tests/spread/"$SPREAD_FILE".tar.gz
-
-    - name: Logout from Google Cloud
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: |
-          gcloud auth revoke
+        name: lxd-test-logs-${{ github.run_id }}
+        path: |
+          spread.log
+          spread-logs/

@@ -10,15 +10,15 @@ execute: |
     spread -vv -reuse -resend &> task.out
 
     grep 'lxd:ubuntu-22.04:checks/main' task.out
-    grep '^WORKS$' task.out
+    grep -E '^WORKS NPROC=[0-9]+ VM=0 ubuntu-22.04$' task.out
 
     for system in ubuntu-24.04-with-plan; do
-        grep "lxd-c:${system}:checks/main" task.out
+        grep "lxd:${system}:checks/main" task.out
         grep "^WORKS NPROC=1 VM=0 ${system}\$" task.out
     done
 
     for system in ubuntu-24.04-vm; do
-        grep "lxd-d:${system}:checks/main" task.out
+        grep "lxd:${system}:checks/main" task.out
         grep "^WORKS NPROC=2 VM=1 ${system}\$" task.out
         grep "^MOUNT WORKS mount-fixture ${system}\$" task.out
     done

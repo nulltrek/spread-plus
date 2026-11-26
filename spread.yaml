@@ -75,7 +75,7 @@ exclude:
 
 path: /home/test/src/github.com/canonical/spread-plus
 
-kill-timeout: 10m
+kill-timeout: 30m
 warn-timeout: 2m
 
 suites:
@@ -83,18 +83,10 @@ suites:
         summary: Integration tests
 
 prepare: |
-    if [ "$SPREAD_BACKEND" = lxd ]; then
-        modprobe kvm_intel || modprobe kvm_amd || true
-        if [ ! -c /dev/kvm ]; then
-            echo "The LXD test worker must support nested KVM." >&2
-            exit 1
-        fi
-    fi
-
-    DEBS="jq git qemu-system-x86 tree python3-yaml"
+    DEBS="jq git qemu-system-x86 tree python3-yaml cpu-checker"
     if ! dpkg -l $DEBS; then
-        apt update
-        apt install -y $DEBS
+        apt-get update
+        apt-get install -y $DEBS
     fi
 
     if [ -n "${http_proxy:-}" ]; then

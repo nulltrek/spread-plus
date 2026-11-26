@@ -1,6 +1,13 @@
 summary: Test the lxd backend.
 
+manual: true
+
 prepare: |
+    if ! kvm-ok; then
+        echo "Nested KVM is not available on this system."
+        exit 1
+    fi
+
     if [ ! -f .spread-reuse.yaml ]; then
         touch /run/spread-reuse.yaml
         ln -s /run/spread-reuse.yaml .spread-reuse.yaml

@@ -76,6 +76,10 @@ jobs:
 
     - name: Set up LXD
       run: |
+        # Docker on the runner sets the FORWARD policy to DROP and rewrites the
+        # firewall, so packets from LXD guests die on the runner. Stop it before
+        # LXD starts, and let forwarded guest traffic pass.
+        sudo systemctl stop docker.service docker.socket containerd.service || true
         sudo modprobe kvm_intel || sudo modprobe kvm_amd || true
         if [ ! -c /dev/kvm ]; then
           echo "LXD VM tests require /dev/kvm on this runner." >&2
@@ -84,6 +88,8 @@ jobs:
         sudo snap install lxd --channel=5.21/stable
         sudo lxd waitready
         sudo lxd init --auto --storage-backend=dir
+        # Undo any DROP policy left behind so LXD guest egress works.
+        sudo iptables -P FORWARD ACCEPT
         sudo setfacl -m "u:$USER:rw" /var/snap/lxd/common/lxd/unix.socket
         chmod +x bin/spreadpp
 
